@@ -1,0 +1,115 @@
+Implement the Continuous Bag of Words (CBOW) Model. Stages can be:
+a. Data preparation
+b. Generate training data
+c. Train model
+d. Output 
+
+//// code explaination
+Here is a breakdown of your CBOW model implementation, following the stages you requested.
+
+### 🧹 a. Data Preparation
+
+This stage involves loading all necessary libraries, defining your text corpus, and converting that text into a numerical format that a neural network can understand.
+
+1.  **Imports:** You import `numpy`, `pandas`, and all the necessary components from `tensorflow.keras`. These are used for data manipulation, building the model, and processing the text.
+2.  **Corpus Definition:** You define your `data` as a single string containing two long sentences separated by a newline.
+3.  **Tokenization:** This is the most important part of this stage.
+      * `Tokenizer()`: You create a `Tokenizer` object. This utility builds a vocabulary of all unique words in your text.
+      * `tokenizer.fit_on_texts(dl_data)`: This line builds the vocabulary (a word-to-index mapping).
+      * `word2id = tokenizer.word_index`: You save this mapping (e.g., `'learning': 1, 'deep': 2`).
+      * `word2id['PAD'] = 0`: You add a special "padding" token. This is used to make all context windows the same length.
+      * `vocab_size = len(word2id)`: You get the total number of unique words (75 in your case).
+      * `wids = ...`: This line converts your text into a list of numerical sequences.
+
+> **Important Correction:** Your code has a subtle bug that prevents the model from learning correctly.
+>
+>   * **The Bug:** Your line `dl_data = data.split()` splits the *entire text* into a single list of words (e.g., `['Deep', 'learning', '(also', ...]`). Then, your `wids` list becomes a list of *single-word lists* (e.g., `[[2], [1], [16], ...]`). This means your generator function never gets any context (like "Deep" and "also" for the word "learning"); it only gets one word at a time.
+>   * **The Fix:** You need to split the data by *sentence* first, and then convert those sentences to sequences.
+>
+> <!-- end list -->
+
+> ```python
+> # --- FIX: Correct way to process sentences ---
+> ```
+
+> # 1\. Split by newline to get sentences, not just words
+>
+> sentences = data.strip().split('\\n')
+
+> # 2\. Fit the tokenizer on the sentences
+>
+> tokenizer = Tokenizer()
+> tokenizer.fit\_on\_texts(sentences)
+
+> # 3\. Create the word-to-ID mappings
+>
+> word2id = tokenizer.word\_index
+> word2id['PAD'] = 0
+> id2word = {v:k for k, v in word2id.items()}
+> vocab\_size = len(word2id)
+
+> # 4\. Convert sentences (not words) to sequences of IDs
+>
+> # This creates a list of lists, where each inner list is a full sentence
+>
+> wids = tokenizer.texts\_to\_sequences(sentences)
+
+> # \--- End of Fix ---
+>
+> ```
+> 
+> The rest of this explanation assumes you have made this fix, so that `wids` is a list of sentences (e.g., `[[2, 1, 16, ...], [2, 11, ...]]`).
+> ```
+
+-----
+
+### 🔡 b. Generate Training Data
+
+The CBOW model tries to predict a **target word** (e.g., "learning") given its surrounding **context words** (e.g., "Deep", "also", "known"). Your `generate_context_word_pairs` function is a Python generator that does exactly this.
+
+1.  **Iterate Sentences (`for words in corpus`):** The function takes your `wids` (the list of sentences) and loops through one sentence at a time.
+2.  **Iterate Words (`for index, word in enumerate(words)`):** It then slides through that sentence, picking one word at a time to be the **target word** (`label_word`).
+3.  **Define Window:** For each target word, it defines a "window" of `window_size * 2` (4 words in your case). It calculates the `start` and `end` index to grab the words before and after the target word.
+4.  **Append Context:** It grabs all words in this window (e.g., "Deep", "learning", "also", "known") but *skips* the target word itself ("learning"), leaving the context: "Deep", "also", "known".
+5.  **Pad & One-Hot Encode:**
+      * `x = pad_sequences(...)`: The context (e.g., `[2, 16, 6]`) is padded with `0`s to be a fixed length (`context_length`, which is 4). This becomes your input `x`.
+      * `y = to_categorical(...)`: The target word (e.g., `[1]`) is one-hot encoded into a giant vector of 75 elements, with a `1` at the correct index and `0`s everywhere else. This is your target `y`.
+6.  **Yield:** The generator `yields` this single `(x, y)` pair and pauses, waiting for the training loop to ask for the next one. This is memory-efficient, as it only creates one training sample at a time.
+
+-----
+
+### 🧠 c. Train Model
+
+This is where you define and train the neural network.
+
+1.  **`cbow = Sequential()`**: You create a simple, linear Keras model.
+2.  **`Embedding(...)` Layer:** This is the heart of Word2Vec.
+      * It's a lookup table where each row (index) corresponds to a word in your vocabulary.
+      * `input_dim=vocab_size`: It has 75 rows (one for each word).
+      * `output_dim=embed_size`: Each word will be represented by a vector of 100 numbers.
+      * The model receives your padded context `x` (shape `(1, 4)`) and outputs the corresponding 4 embedding vectors (shape `(1, 4, 100)`).
+3.  **`Lambda(...)` Layer:** This is the "Bag of Words" part.
+      * `K.mean(x, axis=1)`: It takes the 4 embedding vectors and **averages** them. This squashes the 4 vectors into a single 100-dimension vector that represents the average meaning of the context. The order of the context words is lost, hence "bag of words."
+4.  **`Dense(...)` Layer:** This is the final classifier.
+      * `Dense(vocab_size, activation='softmax')`: It takes the 100-dimension average context vector and passes it through a standard "softmax" layer.
+      * The output is a 75-element vector of probabilities, representing the model's *guess* for what the target word is.
+5.  **`cbow.compile(...)`:** You prepare the model for training, telling it to use `'categorical_crossentropy'` (the standard loss function for one-hot encoded classification) and the `'rmsprop'` optimizer.
+6.  **Training Loop:**
+      * `for epoch in range(1, 6)`: You loop 5 times over the entire dataset.
+      * `for x, y in generate...`: You ask your generator for a single `(x, y)` pair.
+      * `loss += cbow.train_on_batch(x, y)`: You train the model on that single pair and add the resulting loss to a running total.
+      * At the end of each epoch, you print the total loss. As you can see, the loss decreases, showing the model is learning.
+
+-----
+
+### 📊 d. Output
+
+After the model is trained, the useful part is not the model itself, but the **embedding layer's weights**. These weights *are* the word vectors.
+
+1.  **`weights = cbow.get_weights()[0]`**: This line retrieves the learned weights from the first layer of the model (the `Embedding` layer). This `weights` variable is now a matrix of shape `(75, 100)`.
+2.  **`weights = weights[1:]`**: You skip the first row (`[0]`), which is the vector for your 'PAD' token, as it's not a real word.
+3.  **`pd.DataFrame(...)`**: You load this `(74, 100)` matrix into a Pandas DataFrame.
+      * `index=list(id2word.values())[1:]`: You assign the word strings (also skipping 'PAD') as the index.
+      * `.head()`: You print the first 5 rows.
+
+The resulting table shows the first 5 words from your vocabulary ("deep", "networks", "neural", "and", "as") and the first 10 numbers (out of 100) of their learned vector representations.

@@ -1,0 +1,196 @@
+Lab 6: Object detection using Transfer Learning of CNN architectures
+a. Load in a pre-trained CNN model trained on a large dataset
+b. Freeze parameters (weights) in model’s lower convolutional layers
+c. Add custom classifier with several layers of trainable parameters to model
+d. Train classifier layers on training data available for task
+e. Fine-tune hyper parameters and unfreeze more layers as needed
+
+//// steps to run code
+1. Check your hardware
+Make sure your system actually has NVIDIA GPUs.
+Run this in your terminal (not in Python):
+nvidia-smi
+
+2. if Your system has an NVIDIA GeForce RTX 3050 Laptop GPU, with
+Driver Version 555.97 and CUDA Version 12.5 — so PyTorch can use GPU acceleration.
+Now we just need to install a CUDA-compatible build of PyTorch (because your current install is CPU-only).
+# if successs: 
+Verify installation
+After installation, open Python and run:
+import torch
+print("Train on gpu:", torch.cuda.is_available())
+print(torch.cuda.device_count(), "gpus detected.")
+if torch.cuda.is_available():
+    for i in range(torch.cuda.device_count()):
+        print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+You should see something like:
+Train on gpu: True
+1 gpus detected.
+GPU 0: NVIDIA GeForce RTX 3050 Laptop GPU
+
+3. if error:
+install anaconda and
+Open Anaconda Prompt
+Search Anaconda Prompt in the Start menu and run it (right-click → Run as administrator if you want to avoid permission issues for installs).
+# Create a Python 3.12 environment
+Run these in Anaconda Prompt:
+conda create -n torchgpu python=3.12 -y
+conda activate torchgpu
+You should now see (torchgpu) at the start of the prompt.
+
+4. Install PyTorch (CUDA-enabled) + common packages
+pip install --upgrade pip
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+5. Then install the other libraries you use:
+pip install numpy pandas seaborn matplotlib pillow torchsummary
+
+6. Make the environment available as a Jupyter kernel
+pip install ipykernel
+python -m ipykernel install --user --name=torchgpu --display-name "PyTorch (torchgpu)"
+
+7. Launch Jupyter Notebook
+In Anaconda Prompt, run:
+jupyter notebook
+
+8. 2. When the browser opens:
+Click New → PyTorch (torchgpu) kernel.
+
+9.Verify GPU access
+# In a new notebook cell, run:
+import torch
+print(torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+# If it prints something like:-
+2.5.1+cu121
+CUDA available: True
+
+//// code explaination
+To perform object classification (detection at the class level) using transfer learning on a pre-trained VGG16 CNN model trained on the ImageNet dataset, and fine-tune it for a custom dataset with 100 object categories.
+
+⚙️ Step-by-Step Explanation
+1. Importing Libraries
+
+All essential Python libraries for deep learning and visualization are imported:
+
+PyTorch: torch, torchvision, nn, optim
+
+Data Handling: pandas, numpy, os
+
+Visualization: matplotlib, seaborn
+
+Utility: warnings, timeit, torchsummary
+
+2. Data Setup
+
+The dataset is divided into:
+
+Training, Validation, and Testing directories.
+
+The number of images per class and their dimensions are computed.
+
+Visualization:
+
+Bar plots show image distribution across classes.
+
+KDE plots show average image size distribution.
+
+Example:
+
+Training Images by Category → shows class imbalance
+Average Size Distribution → height and width variation
+
+3. Data Augmentation and Transformations
+
+For robust training:
+
+Training transforms:
+
+Random crop, rotation, color jitter, and flipping.
+
+Normalize to ImageNet mean and std.
+
+Validation & Test transforms:
+
+Resize, center crop, normalize.
+
+Ensures all images are resized to 224×224 (VGG16 input requirement).
+
+4. Data Loading
+
+ImageFolder automatically labels images from directory structure.
+
+DataLoader handles batching and shuffling.
+
+Batch size = 128 for GPU training.
+
+dataloaders = {
+    'train': DataLoader(data['train'], batch_size=128, shuffle=True),
+    ...
+}
+
+5. Model: Transfer Learning with VGG16
+
+Pretrained VGG16 model from torchvision.models is loaded.
+
+Freeze all convolutional layers so only the classifier is trainable.
+
+Custom classifier replaces the final layer:
+
+nn.Sequential(
+    nn.Linear(4096, 256),
+    nn.ReLU(),
+    nn.Dropout(0.4),
+    nn.Linear(256, n_classes),
+    nn.LogSoftmax(dim=1)
+)
+
+6. Training Setup
+
+Loss function: Negative Log Likelihood (nn.NLLLoss)
+
+Optimizer: Adam (optim.Adam)
+
+Only classifier parameters are updated
+
+Total parameters: 135M
+Trainable parameters: 1.07M (classifier only)
+
+7. Model Training Function
+
+The train() function:
+
+Performs forward and backward passes.
+
+Tracks training/validation loss and accuracy.
+
+Includes early stopping if validation loss doesn’t improve for 5 epochs.
+
+Saves best model weights as vgg16-transfer-4.pt.
+
+8. Training Results
+Epoch	Train Loss	Val Loss	Train Acc	Val Acc
+1	0.915	0.552	76.8%	85.4%
+5	0.388	0.443	88.9%	87.5%
+11	0.259	0.414	92.2%	89.1%
+15	0.210	0.428	93%+	88%+
+
+The validation accuracy steadily improves to around 89%, indicating strong generalization.
+
+🧾 Key Insights
+
+✅ Pretrained VGG16 efficiently transfers learned features from ImageNet to a new dataset.
+✅ Only training the fully connected classifier reduces computation drastically.
+✅ Data augmentation improves model robustness.
+✅ Early stopping prevents overfitting.
+✅ Achieved ~89% validation accuracy on 100 classes.
+
+📊 Possible Extensions
+
+Compare with ResNet50 (function already defined).
+
+Use Grad-CAM for explainable visualization.
+
+Apply fine-tuning on deeper convolutional layers for better accuracy.
+
+Try YOLOv5 / Faster R-CNN for actual bounding-box object detection.

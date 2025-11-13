@@ -1,0 +1,75 @@
+Lab 2. Implementing Feedforward neural networks with Keras and TensorFlow
+a. Import the necessary packages
+b. Load the training and testing data (MNIST/CIFAR10)
+c. Define the network architecture using Keras
+d. Train the model using SGD
+e. Evaluate the network
+f. Plot the training loss and accuracy
+
+//// code explaination
+Here is a step-by-step explanation of your code, following the 4-stage structure you've laid out.
+### Summary
+This code successfully builds, trains, and tests a **Convolutional Neural Network (CNN)**. Its goal is to learn how to **recognize and classify handwritten digits** (0 through 9) from the famous **MNIST dataset**. It achieves a very high accuracy of **98.0%** on unseen test data.
+### 📦 Pre-Code: Imports and Setup
+* **`!pip install ...`**: This output just shows that you have already installed the necessary libraries (`tensorflow` and `matplotlib`).
+* **`import tensorflow as tf`**: Imports TensorFlow, the main library for building and training machine learning models.
+* **`from keras...`**: Keras is TensorFlow's high-level API, which makes it much easier to build models. You are importing:
+    * `Sequential`: The model type you're using (a simple, linear stack of layers).
+    * `Dense`, `Conv2D`, `Dropout`, `Flatten`, `MaxPooling2D`: These are all the "building blocks" or **layers** for your network.
+* **`import matplotlib.pyplot as plt`**: This is used for plotting images, like you did at the end.
+* **`import numpy as np`**: This is used for numerical operations, especially for reshaping data and finding the final prediction.
+* **Protobuf Warnings**: The long list of `UserWarning` messages about "Protobuf" is common. It's an internal version mismatch within TensorFlow's components. **You can safely ignore these warnings**; they are not errors and don't affect your model's performance.
+---
+### a. Loading and Preprocessing the Image Data
+This stage gets your data ready for the model.
+1.  **`mnist = tf.keras.datasets.mnist`**: You load the MNIST dataset, which is conveniently included with Keras.
+2.  **`(x_train, y_train), (x_test, y_test) = mnist.load_data()`**: You split the data into two parts:
+    * **Training Set** (`x_train`, `y_train`): 60,000 images and their corresponding labels (e.g., image `x_train[0]` is a "5", so `y_train[0]` is the number `5`). The model *learns* from this set.
+    * **Testing Set** (`x_test`, `y_test`): 10,000 images and labels. The model is *evaluated* on this set, which it has never seen before, to check its real-world performance.
+3.  **`x_train = x_train.reshape(...)`**: The `Conv2D` layer expects a 4-dimensional input: `(batch_size, height, width, color_channels)`.
+    * Your original images are `(60000, 28, 28)`.
+    * This line **reshapes** them to `(60000, 28, 28, 1)`. The `1` signifies that the images are **grayscale** (they only have one color channel).
+4.  **`x_train = x_train.astype('float32')`**: You convert the image pixel data from integers (whole numbers) to `float32` (decimal numbers). This is necessary for the next step.
+5.  **`x_train = x_train/255`**: This is **normalization**. Pixel values range from 0 (black) to 255 (white). By dividing all pixels by 255, you scale the data to a much smaller range of **[0.0, 1.0]**. This makes the model train much faster and more reliably.
+---
+### b. Defining the Model's Architecture
+This is where you build your CNN, layer by layer.
+1.  **`model = Sequential()`**: You initialize your model as a simple, one-after-another stack of layers.
+2.  **`model.add(Conv2D(28, ...))`**: This is the first and most important layer.
+    * **`Conv2D`** (Convolutional Layer): This layer's job is to find features. It slides a small `(3,3)` "window" (or `kernel`) across the image to detect patterns like edges, curves, and corners.
+    * `28`: This tells the layer to learn **28 different features**.
+3.  **`model.add(MaxPooling2D(pool_size=(2,2)))`**: This layer **down-samples** the data. It looks at 2x2 blocks of pixels and keeps only the *single brightest* pixel. This has two benefits:
+    * It makes the data smaller, which speeds up the model.
+    * It helps the model recognize a feature (like a "7") even if it's slightly moved.
+4.  **`model.add(Flatten())`**: This is a critical adapter. The `Conv2D` and `MaxPooling2D` layers output 2D data (feature maps). This `Flatten` layer "unrolls" or "flattens" that 2D data into one single, long 1D vector. This is necessary to feed it into the standard `Dense` layers.
+    * Your model summary shows this: the `(None, 13, 13, 28)` output from the pool layer is flattened into `(None, 4732)` (because $13 \times 13 \times 28 = 4732$).
+5.  **`model.add(Dense(200, activation='relu'))`**: This is a standard, fully-connected **hidden layer** with 200 neurons. It's where the model does most of the "thinking" and combines the features found earlier to form more complex ideas. The `'relu'` activation is a standard "on/off" switch for neurons.
+6.  **`model.add(Dropout(0.3))`**: This is a regularization technique to **prevent overfitting**. During training, it randomly "turns off" 30% of the neurons from the previous layer. This forces the model to learn more robustly and not just "memorize" the training images.
+7.  **`model.add(Dense(10, activation='softmax'))`**: This is the final **output layer**.
+    * `10`: It *must* have 10 neurons, one for each possible class (digits 0-9).
+    * `'softmax'`: This activation function converts the layer's raw output into **probabilities**. It gives you a 10-value array where each value is the model's confidence that the image belongs to that class, and all 10 values add up to 1.0.
+---
+### c. Training the Model
+This section configures the model for learning and then starts the training.
+1.  **`model.compile(...)`**: This "compiles" the model, setting up the learning process.
+    * **`optimizer='adam'`**: The "Adam" optimizer is the algorithm that updates the model's internal parameters to reduce the error. It's a very effective and popular default choice.
+    * **`loss='sparse_categorical_crossentropy'`**: This is the **loss function**. It measures how "wrong" the model's predictions are. This specific loss function is used when your labels are simple integers (like `0`, `1`, `5`) and your output layer uses `softmax`.
+    * **`metrics=['accuracy']`**: You're telling the model to please report its **accuracy** (the percentage of images it gets right) during training.
+2.  **`model.fit(x_train, y_train, epochs=2)`**: This is the command that **starts the training**.
+    * It "fits" the training images (`x_train`) to the training labels (`y_train`).
+    * `epochs=2`: An "epoch" is one complete pass through the *entire* 60,000-image training set. You've asked it to do this 2 times.
+    * The output (e.g., `accuracy: 0.9750`) shows the model getting better with each epoch.
+---
+### d. Estimating the Model's Performance
+This is the final step, where you check how well the trained model performs on new data.
+1.  **`model.evaluate(x_test, y_test)`**: This runs the *trained* model on the 10,000 **test images** it has never seen before. This gives you an unbiased "final grade" for the model.
+2.  **`print('Accuracy=%.3f' %test_acc)`**: You print the result. `0.980` means your model correctly classified **98.0%** of the unseen test images, which is an excellent result!
+3.  **`plt.imshow(...)`**: You use Matplotlib to grab the first image from the training set (`x_train[0]`) and display it.
+4.  **`image = image.reshape(1, ...)`**: To predict a *single* image, you must reshape it to include a **batch dimension**. The model expects a batch of images, so `(28, 28, 1)` becomes `(1, 28, 28, 1)`.
+5.  **`predict_model = model.predict([image])`**: You ask the model to predict the class of this one image.
+6.  **`print('predicted class: {}'.format(np.argmax(predict_model)))`**:
+    * `predict_model` holds the 10 `softmax` probabilities (e.g., `[0.01, 0.0, 0.0, 0.0, 0.0, 0.95, ...]`).
+    * **`np.argmax`** is a NumPy function that finds the **index** (the position) of the *largest value* in that array.
+    * Since the indices 0-9 map to the digits 0-9, the index of the highest probability is the model's prediction. The image was a "5", and the model correctly outputted `predicted class: 5`.
+---
+Would you like to see how you could try to improve this model's accuracy even further?
